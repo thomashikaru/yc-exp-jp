@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link href="../static/memexpt.css" rel="stylesheet" />
+    <link href="../static/jspsych/dist/jspsych.css" rel="stylesheet" />
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Cache-Control"
+      content="no-cache, no-store, must-revalidate"
+    />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>言語と記憶の実験</title>
+    <!-- <script src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/jspsych.js') }}"></script>
+    <script src="{{ url_for('mp.static', filename='thomas_230614/data/jp/targets.js') }}"></script>
+    <script src="{{ url_for('mp.static', filename='thomas_230614/data/jp/fillers.js') }}"></script>
+    <script src="{{ url_for('mp.static', filename='thomas_230614/utils.js') }}"></script>
+    <script
+        src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/plugin-html-keyboard-response.js') }}"></script>
+    <script src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/plugin-instructions.js') }}"></script>
+    <script src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/plugin-survey-text.js') }}"></script>
+    <script
+        src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/plugin-survey-multi-choice.js') }}"></script>
+    <script src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/plugin-call-function.js') }}"></script>
+    <script
+        src="{{ url_for('mp.static', filename='thomas_230614/jspsych/dist/plugin-html-button-response.js') }}"></script> -->
+    <script src="../static/jspsych/dist/jspsych.js"></script>
+    <script src="../static/data/jp/targets.js"></script>
+    <script src="../static/data/jp/fillers.js"></script>
+    <script src="../static/utils.js"></script>
+    <script src="../static/jspsych/dist/plugin-html-keyboard-response.js"></script>
+    <script src="../static/jspsych/dist/plugin-instructions.js"></script>
+    <script src="../static/jspsych/dist/plugin-survey-text.js"></script>
+    <script src="../static/jspsych/dist/plugin-survey-multi-choice.js"></script>
+    <script src="../static/jspsych/dist/plugin-call-function.js"></script>
+    <script src="../static/jspsych/dist/plugin-html-button-response.js"></script>
+    <link href="../static/jspsych/dist/jspsych.css" rel="stylesheet" />
+    <link href="../static/memexpt.css" rel="stylesheet" />
+  </head>
+
+  <body></body>
+  <script type="module">
+    var instr_img = '<img src="../static/data/jp/jp_instr_fig.png"></img>';
+    task_instructions_jp.splice(4, 0, instr_img);
+
+    window.onbeforeunload = function () {
+      return true;
+    };
+
+    // Send data to server
+    function save_data_to_server(user_id = "test") {
+      let data_to_submit = jsPsych.data.get();
+      let data_and_id = { data: data_to_submit.json(), user_id: user_id };
+      console.log(data_and_id);
+      const requestOptions = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data_and_id),
+      };
+      fetch("/mp/submitdatathc/", requestOptions).then((response) => {
+        console.log(response);
+      });
+    }
+
+    // print to console only if debug_mode is true (defined in utils.js)
+    function debug_print(x) {
+      if (debug_mode) {
+        console.log(x);
+      }
+    }
+
+    // SETUP JSPSYCH
+    var jsPsych = initJsPsych({
+      show_progress_bar: true,
+      message_progress_bar: "実験の進行",
+      auto_update_progress_bar: false,
+      on_close: function () {
+        save_data_to_server(participant_id);
+      },
+      on_finish: function () {
+        save_data_to_server(participant_id);
+      },
+      override_safe_mode: false,
+    });
+
+    // EXPERIMENT GLOBAL VARIABLES ----------------------------------------------------------------
+    // generate a random ID for the current participant, which will be used to save their data file
+    var participant_id = jsPsych.randomization.randomID();
+    // interval object for updating countdown timer on break screens
+    var interval = null;
+
+    // helper function for packaging trial variables, given sentence list and condition name
+    function getDataForCondition(sentences, condition, list_id) {
+      var sentences_shuf = jsPsych.randomization.repeat(sentences[list_id], 1);
+      for (var i = 0; i < sentences_shuf.length; i++) {
+        var stim = sentences_shuf[i];
+        var a = [];
+        var trial = {
+          stimulus: format(stim),
+          stimulus_raw: stim,
+          condition: condition,
+          repeat: false,
+        };
+        a.push(trial);
+      }
+      return a;
+    }
+
+    // jitter function - adapted from original code
+    function jitterRepeats(a, jitter) {
+      for (var i = 0; i < a.length - jitter; i += jitter) {
+        var j1 = i;
+        var j2 = i + jitter;
+        if (j2 >= a.length) {
+          j2 = a.length - 1;
+        }
+        var tmp = a.slice(j1, j2);
+        tmp = jsPsych.randomization.repeat(tmp, 1);
+        a.splice(j1, j2 - j1, ...tmp);
+      }
+    }
+
+    function buildSequence(a, groupSize) {
+      var seq = [];
+
+      // create a lookup of how much allowance of each condition is available
+      var d = {
+        1: 10,
+        2: 10,
+        3: 10,
+      };
+
+      for (var j = 0; j < a.length / groupSize; j++) {
+        var start_index = j * groupSize;
+
+        var offset = 0;
+        var i = start_index;
+        if (!a[0].Filler) {
+          while (d[a[start_index + offset].Item] <= 0) {
+            offset++;
+          }
+          i += offset;
+          d[a[i].Item]--;
+        }
+
+        var grid = null;
+        var grid_inputs = null;
+
+        var np1_top_right = Math.random() < 0.5;
+        if (np1_top_right) {
+          grid_inputs = [
+            render_newline(a[i].subj),
+            render_newline(a[i].np1),
+            render_newline(a[i].np2),
+            render_newline(a[i].verb),
+          ];
+        } else {
+          grid_inputs = [
+            render_newline(a[i].subj),
+            render_newline(a[i].np2),
+            render_newline(a[i].np1),
+            render_newline(a[i].verb),
+          ];
+        }
+
+        if (a[i].Filler) {
+          grid_inputs = jsPsych.randomization.repeat(grid_inputs, 1);
+        }
+        grid = makeGrid(...grid_inputs);
+        debug_print(grid);
+
+        var cond = "";
+        if (a[i].Group == 1) {
+          cond = "long_short";
+        } else if (a[i].Group == 2) {
+          cond = "short_long";
+        } else if (a[i].Group == 3) {
+          cond = "short_short";
+        }
+        if (a[i].Filler) {
+          cond = "filler";
+        }
+
+        seq.push({
+          subject: a[i].subj,
+          verb: a[i].verb,
+          np1: a[i].np1,
+          np2: a[i].np2,
+          np1_top_right: np1_top_right,
+          repeat: false,
+          filler: a[i].Filler,
+          math_question: a[i].math_question,
+          math_question_display: makeMathQ(a[i].math_question),
+          math_correct_answer: a[i].math_correct_answer,
+          group_name: a[i].Group,
+          item_id: a[i].Item,
+          condition: cond,
+          stimulus_display: grid,
+          stimulus2_display: makeCueJp(a[i].verb),
+        });
+      }
+      return seq;
+    }
+
+    // CREATING TIMELINE ---------------------------------------------------------------------
+
+    // create randomized list of target stimuli
+    var targets = [];
+
+    // feed into buildSequence function, returns experimental sequence
+    var sentence_mem_timeline_vars = jsPsych.randomization.repeat(
+      buildSequence(jp_targets, 3).concat(buildSequence(jp_fillers, 1)),
+      1
+    );
+
+    // add repeats
+    for (var i = 0; i < sentence_mem_timeline_vars.length; i++) {
+      if (
+        Math.random() < vigilance_frequency &&
+        sentence_mem_timeline_vars[i].filler
+      ) {
+        var back =
+          i -
+          (Math.floor(
+            Math.random() *
+              (vigilance_repeat_back_range[1] - vigilance_repeat_back_range[0])
+          ) +
+            vigilance_repeat_back_range[0]);
+        if (
+          back >= 0 &&
+          sentence_mem_timeline_vars[back].filler &&
+          sentence_mem_timeline_vars[back].repeat == false
+        ) {
+          sentence_mem_timeline_vars[i] = {
+            ...sentence_mem_timeline_vars[back],
+          };
+          sentence_mem_timeline_vars[i].repeat = true;
+          debug_print(sentence_mem_timeline_vars[i]);
+        }
+      }
+    }
+
+    debug_print(sentence_mem_timeline_vars);
+    debug_print(sentence_mem_timeline_vars[0].subject);
+
+    var n_trials = sentence_mem_timeline_vars.length;
+
+    // EXPERIMENTAL TIMELINE
+    var timeline = [];
+
+    // WELCOME PAGE
+    var instr = {
+      type: jsPsychInstructions,
+      pages: [
+        "<p>これは言語と記憶に関する実験です。</p>",
+        "この研究は、MIT 科学研究プロジェクトの一部です。" +
+          "この研究への参加は任意です。 回答は匿名です。" +
+          "研究結果は学会で発表されたり、科学雑誌に掲載されたりする場合があります。" +
+          "このページの下部にある [次へ] ボタンをクリックすると、あなたが 18 歳以上であり、この研究を自発的に完了することに同意したことになります。",
+      ],
+      show_clickable_nav: true,
+      button_label_previous: "前に戻る",
+      button_label_next: "次へ",
+    };
+    if (!debug_mode) {
+      timeline.push(instr);
+    }
+
+    // QUESTIONNAIRE
+    var trial = {
+      type: jsPsychSurveyMultiChoice,
+      preamble:
+        "<p style='font-size: 25px'> 以下は、調査に役立つ人口統計上の質問です。</p>", //+　"この実験への参加報酬はこれらの回答内容に関わらず支払われます。</p>",
+      questions: [
+        {
+          prompt: "どの国に住んでいますか？",
+          options: ["アメリカ", "日本", "その他"],
+          horizontal: false,
+          required: true,
+          name: "Country",
+        },
+        {
+          prompt: "あなたの母国語は何ですか？",
+          options: ["日本語", "その他"],
+          horizontal: false,
+          required: true,
+          name: "Language",
+        },
+        {
+          prompt: "あなたの性別は何ですか？",
+          options: ["男性", "女性", "その他", "答えたくありません"],
+          horizontal: false,
+          required: true,
+          name: "Gender",
+        },
+      ],
+      randomize_question_order: false,
+      button_label: "次へ",
+    };
+    if (!debug_mode) {
+      timeline.push(trial);
+    }
+
+    var trial = {
+      type: jsPsychSurveyText,
+      button_label: "次へ",
+      questions: prolific
+        ? [
+            {
+              prompt: "<p>あなたの年齢：</p>",
+              name: "Age",
+              required: false,
+              columns: 5,
+            },
+            {
+              prompt: "「Prolific」のID番号",
+              name: "worker_id",
+              required: true,
+              columns: 20,
+            },
+          ]
+        : [
+            {
+              prompt: "<p>あなたの年齢：</p>",
+              name: "Age",
+              required: false,
+              columns: 5,
+            },
+          ],
+    };
+    if (!debug_mode) {
+      timeline.push(trial);
+    }
+
+    // INSTRUCTIONS (instructions can be edited in utils.js)
+    var instr = {
+      type: jsPsychInstructions,
+      pages: task_instructions_jp,
+      show_clickable_nav: true,
+      button_label_previous: "前に戻る",
+      button_label_next: "次へ",
+    };
+    if (!debug_mode) {
+      timeline.push(instr);
+    }
+
+    // DEMO SEQUENCE
+    var demo = [
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: makeGrid("男の子が", "ボールを", "友達に", "あげた。"),
+        prompt: sent_prompt_jp,
+        choices: [" "],
+        trial_duration: stimulus_duration,
+        post_trial_gap: 0,
+        response_ends_trial: true,
+        data: {
+          repeat: false,
+        },
+        on_finish: function (data) {
+          if (
+            jsPsych.pluginAPI.compareKeys(data.response, " ") &&
+            data.repeat
+          ) {
+            data.correct = true;
+          } else if (data.response == null && data.repeat == false) {
+            data.correct = true;
+          } else {
+            data.correct = false;
+          }
+        },
+        save_trial_parameters: {
+          stimulus: false,
+        },
+      },
+      {
+        // first repeat memory feedback
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function () {
+          var last_trial_correct = jsPsych.data
+            .get()
+            .last(1)
+            .values()[0].correct;
+          if (last_trial_correct) {
+            return format_green("正解"); // the parameter value has to be returned from the function
+          } else {
+            return format_red("不正解"); // the parameter value has to be returned from the function
+          }
+        },
+        choices: "NO_KEYS",
+        trial_duration: post_stimulus_delay,
+      },
+      {
+        type: jsPsychSurveyText,
+        preamble: makeMathQ("5 + 7 = ?"),
+        questions: [
+          {
+            name: "math_answer",
+            required: true,
+            columns: 20,
+            prompt: "答え:",
+          },
+        ],
+        button_label: "次へ",
+        data: {
+          math_correct_answer: 12,
+        },
+        trial_duration: fixation_duration,
+        response_ends_trial: true,
+        on_finish: function (data) {
+          debug_print(data.response);
+          if (
+            jsPsych.pluginAPI.compareKeys(
+              convert_jp_num(data.response.math_answer),
+              data.math_correct_answer.toString()
+            )
+          ) {
+            data.correct = true;
+          } else {
+            data.correct = false;
+          }
+        },
+        save_trial_parameters: {
+          stimulus: false,
+        },
+      },
+      {
+        // first feedback on math response
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function () {
+          var last_trial_correct = jsPsych.data
+            .get()
+            .last(1)
+            .values()[0].correct;
+          if (last_trial_correct) {
+            return format_green("正解"); // the parameter value has to be returned from the function
+          } else {
+            return format_red("不正解"); // the parameter value has to be returned from the function
+          }
+        },
+        choices: "NO_KEYS",
+        trial_duration: post_stimulus_delay,
+      },
+      {
+        type: jsPsychSurveyText,
+        preamble: makeCueJp("あげた。"),
+        questions: [
+          {
+            name: "produced_sentence",
+            columns: 20,
+            prompt:
+              "表示されている部分も含めて全文を記憶から書き直してください。",
+          },
+        ],
+        trial_duration: build_sent_duration_jp,
+        response_ends_trial: true,
+        button_label: "次へ",
+      },
+      {
+        // first sentence recall feedback
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function () {
+          var last_data = jsPsych.data.get().last(1).values()[0];
+          var last_response = remove_period_jp(
+            last_data.response["produced_sentence"]
+          );
+          var last_answer1 =
+            standardize_whitespace("男の子がボールを友達にあげた");
+          var last_answer2 =
+            standardize_whitespace("男の子が友達にボールをあげた");
+          var edit_dist1 = editDistance(last_response, last_answer1);
+          var edit_dist2 = editDistance(last_response, last_answer2);
+          var edit_dist = Math.min(edit_dist1, edit_dist2);
+          var score = Math.round(100.0 * (1 - edit_dist / last_answer1.length));
+          var score = Math.max(0, score);
+          var score = Math.min(100, score);
+          return display_score_feedback_jp(score);
+        },
+        choices: "NO_KEYS",
+        trial_duration: post_stimulus_delay,
+        on_finish: function () {
+          save_data_to_server(participant_id);
+        },
+      },
+      {
+        // second sentence presentation
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: makeGrid("太郎が", "田中先生に", "手紙を", "書いた。"),
+        prompt: sent_prompt_jp,
+        choices: [" "],
+        trial_duration: stimulus_duration,
+        post_trial_gap: 0,
+        response_ends_trial: true,
+        data: {
+          repeat: false,
+        },
+        on_finish: function (data) {
+          if (
+            jsPsych.pluginAPI.compareKeys(data.response, " ") &&
+            data.repeat
+          ) {
+            data.correct = true;
+          } else if (data.response == null && data.repeat == false) {
+            data.correct = true;
+          } else {
+            data.correct = false;
+          }
+        },
+        save_trial_parameters: {
+          stimulus: false,
+        },
+      },
+      {
+        // second repeat memory feedback
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function () {
+          var last_trial_correct = jsPsych.data
+            .get()
+            .last(1)
+            .values()[0].correct;
+          if (last_trial_correct) {
+            return format_green("正解"); // the parameter value has to be returned from the function
+          } else {
+            return format_red("不正解"); // the parameter value has to be returned from the function
+          }
+        },
+        choices: "NO_KEYS",
+        trial_duration: post_stimulus_delay,
+      },
+      {
+        // second math question
+        type: jsPsychSurveyText,
+        preamble: makeMathQ("12 + 7 = ?"),
+        questions: [
+          {
+            name: "math_answer",
+            required: false,
+            columns: 20,
+            prompt: "答え:",
+          },
+        ],
+        button_label: "次へ",
+        data: {
+          math_correct_answer: 19,
+        },
+        trial_duration: math_duration,
+        response_ends_trial: true,
+        on_finish: function (data) {
+          debug_print(data.response);
+          if (
+            jsPsych.pluginAPI.compareKeys(
+              convert_jp_num(data.response.math_answer),
+              data.math_correct_answer.toString()
+            )
+          ) {
+            data.correct = true;
+          } else {
+            data.correct = false;
+          }
+        },
+        save_trial_parameters: {
+          stimulus: false,
+        },
+      },
+      {
+        // second feedback on math question
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function () {
+          var last_trial_correct = jsPsych.data
+            .get()
+            .last(1)
+            .values()[0].correct;
+          if (last_trial_correct) {
+            return format_green("正解"); // the parameter value has to be returned from the function
+          } else {
+            return format_red("不正解"); // the parameter value has to be returned from the function
+          }
+        },
+        choices: "NO_KEYS",
+        trial_duration: post_stimulus_delay,
+      },
+      {
+        // second sentence recall
+        type: jsPsychSurveyText,
+        preamble: makeCueJp("書いた。"),
+        trial_duration: build_sent_duration_jp,
+        questions: [
+          {
+            name: "produced_sentence",
+            required: false,
+            columns: 20,
+            prompt:
+              "表示されている部分も含めて全文を記憶から書き直してください。",
+          },
+        ],
+        response_ends_trial: true,
+        button_label: "次へ",
+      },
+      {
+        // second sentence recall feedback
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function () {
+          var last_data = jsPsych.data.get().last(1).values()[0];
+          var last_response = remove_period_jp(
+            last_data.response["produced_sentence"]
+          );
+          var last_answer1 =
+            standardize_whitespace(
+              "太郎が田中先生に手紙を書いた"
+            ).toLowerCase();
+          var last_answer2 =
+            standardize_whitespace(
+              "太郎が手紙を田中先生に書いた"
+            ).toLowerCase();
+          var edit_dist1 = editDistance(last_response, last_answer1);
+          var edit_dist2 = editDistance(last_response, last_answer2);
+          var edit_dist = Math.min(edit_dist1, edit_dist2);
+          var score = Math.round(100.0 * (1 - edit_dist / last_answer1.length));
+          var score = Math.max(0, score);
+          var score = Math.min(100, score);
+          return display_score_feedback_jp(score);
+        },
+        choices: "NO_KEYS",
+        trial_duration: post_stimulus_delay,
+      },
+    ];
+    timeline.push(...demo);
+
+    // FINAL CONFIRMATION SCREEN
+    var trial = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus:
+        '<span style="font-size: 25px">開始する準備ができたら、スペースバーを押してください。</span>',
+      choices: [" ", "Spacebar"],
+    };
+    timeline.push(trial);
+
+    // build the experimental timeline
+    var sentence_mem_procedure = {
+      timeline: [
+        // break_conditional, // optional break trial
+        {
+          // show sentence parts
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: jsPsych.timelineVariable("stimulus_display"),
+          prompt: sent_prompt_jp,
+          choices: [" "],
+          trial_duration: stimulus_duration,
+          post_trial_gap: 0,
+          response_ends_trial: true,
+          data: {
+            condition: jsPsych.timelineVariable("condition"),
+            math_question: jsPsych.timelineVariable("math_question"),
+            math_correct_answer: jsPsych.timelineVariable(
+              "math_correct_answer"
+            ),
+            item_id: jsPsych.timelineVariable("item_id"),
+            group_name: jsPsych.timelineVariable("group_name"),
+            subject: jsPsych.timelineVariable("subject"),
+            verb: jsPsych.timelineVariable("verb"),
+            np1: jsPsych.timelineVariable("np1"),
+            np2: jsPsych.timelineVariable("np2"),
+            repeat: jsPsych.timelineVariable("repeat"),
+            np1_top_right: jsPsych.timelineVariable("np1_top_right"),
+            filler: jsPsych.timelineVariable("filler"),
+          },
+          on_finish: function (data) {
+            var curr_progress_bar_value = jsPsych.getProgressBarCompleted();
+            jsPsych.setProgressBar(
+              curr_progress_bar_value + 1.0 / (4 * n_trials)
+            );
+            if (
+              jsPsych.pluginAPI.compareKeys(data.response, " ") &&
+              data.repeat
+            ) {
+              data.correct = true;
+            } else if (data.response == null && data.repeat == false) {
+              data.correct = true;
+            } else {
+              data.correct = false;
+            }
+          },
+          save_trial_parameters: {
+            stimulus: false,
+          },
+        },
+        {
+          // fixation (plus feedback on memory repeat response)
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: function () {
+            var last_trial_correct = jsPsych.data
+              .get()
+              .last(1)
+              .values()[0].correct;
+            if (last_trial_correct) {
+              return format_green("正解"); // the parameter value has to be returned from the function
+            } else {
+              return format_red("不正解"); // the parameter value has to be returned from the function
+            }
+          },
+          choices: "NO_KEYS",
+          on_finish: function (data) {
+            var curr_progress_bar_value = jsPsych.getProgressBarCompleted();
+            jsPsych.setProgressBar(
+              curr_progress_bar_value + 1.0 / (4 * n_trials)
+            );
+          },
+          trial_duration: post_stimulus_delay,
+        },
+        {
+          // distractor math question
+          type: jsPsychSurveyText,
+          preamble: jsPsych.timelineVariable("math_question_display"),
+          trial_duration: math_duration,
+          questions: [
+            {
+              name: "math_answer",
+              required: false,
+              columns: 20,
+              prompt: "答え:",
+            },
+          ],
+          button_label: "送信",
+          data: {
+            condition: jsPsych.timelineVariable("condition"),
+            math_question: jsPsych.timelineVariable("math_question"),
+            math_correct_answer: jsPsych.timelineVariable(
+              "math_correct_answer"
+            ),
+            item_id: jsPsych.timelineVariable("item_id"),
+            group_name: jsPsych.timelineVariable("group_name"),
+            subject: jsPsych.timelineVariable("subject"),
+            verb: jsPsych.timelineVariable("verb"),
+            np1: jsPsych.timelineVariable("np1"),
+            np2: jsPsych.timelineVariable("np2"),
+            repeat: jsPsych.timelineVariable("repeat"),
+            np1_top_right: jsPsych.timelineVariable("np1_top_right"),
+            filler: jsPsych.timelineVariable("filler"),
+          },
+          on_finish: function (data) {
+            var curr_progress_bar_value = jsPsych.getProgressBarCompleted();
+            jsPsych.setProgressBar(
+              curr_progress_bar_value + 1.0 / (4 * n_trials)
+            );
+            debug_print(data.response);
+            if (
+              jsPsych.pluginAPI.compareKeys(
+                convert_jp_num(data.response.math_answer),
+                data.math_correct_answer.toString()
+              )
+            ) {
+              data.correct = true;
+            } else {
+              data.correct = false;
+            }
+          },
+          save_trial_parameters: {
+            stimulus: false,
+          },
+        },
+        {
+          // fixation (plus feedback on memory repeat response)
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: function () {
+            var last_trial_correct = jsPsych.data
+              .get()
+              .last(1)
+              .values()[0].correct;
+            if (last_trial_correct) {
+              return format_green("正解"); // the parameter value has to be returned from the function
+            } else {
+              return format_red("不正解"); // the parameter value has to be returned from the function
+            }
+          },
+          choices: "NO_KEYS",
+          trial_duration: post_stimulus_delay,
+        },
+        {
+          // build a sentence
+          type: jsPsychSurveyText,
+          preamble: jsPsych.timelineVariable("stimulus2_display"),
+          trial_duration: build_sent_duration_jp,
+          questions: [
+            {
+              name: "produced_sentence",
+              required: false,
+              columns: 20,
+              prompt:
+                "表示されている部分も含めて全文を記憶から書き直してください。",
+            },
+          ],
+          button_label: "送信",
+          data: {
+            condition: jsPsych.timelineVariable("condition"),
+            math_question: jsPsych.timelineVariable("math_question"),
+            math_correct_answer: jsPsych.timelineVariable(
+              "math_correct_answer"
+            ),
+            item_id: jsPsych.timelineVariable("item_id"),
+            group_name: jsPsych.timelineVariable("group_name"),
+            subject: jsPsych.timelineVariable("subject"),
+            verb: jsPsych.timelineVariable("verb"),
+            np1: jsPsych.timelineVariable("np1"),
+            np2: jsPsych.timelineVariable("np2"),
+            repeat: jsPsych.timelineVariable("repeat"),
+            np1_top_right: jsPsych.timelineVariable("np1_top_right"),
+            filler: jsPsych.timelineVariable("filler"),
+          },
+          on_finish: function (data) {
+            var curr_progress_bar_value = jsPsych.getProgressBarCompleted();
+            jsPsych.setProgressBar(
+              curr_progress_bar_value + 1.0 / (4 * n_trials)
+            );
+          },
+          save_trial_parameters: {
+            stimulus: false,
+          },
+        },
+        {
+          // fixation (plus feedback on memory repeat response)
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: function () {
+            var last_data = jsPsych.data.get().last(1).values()[0];
+            var last_response = remove_period_jp(
+              last_data.response["produced_sentence"]
+            );
+            var last_answer1 = remove_period_jp(
+              standardize_whitespace(
+                last_data.subject +
+                  last_data.np1 +
+                  last_data.np2 +
+                  last_data.verb
+              )
+            );
+            var last_answer2 = remove_period_jp(
+              standardize_whitespace(
+                last_data.subject +
+                  last_data.np2 +
+                  last_data.np1 +
+                  last_data.verb
+              )
+            );
+            var edit_dist1 = editDistance(last_response, last_answer1);
+            var edit_dist2 = editDistance(last_response, last_answer2);
+            var edit_dist = Math.min(edit_dist1, edit_dist2);
+            var score = Math.round(
+              100.0 * (1 - edit_dist / last_answer1.length)
+            );
+            var score = Math.max(0, score);
+            var score = Math.min(100, score);
+            return display_score_feedback_jp(score);
+          },
+          choices: "NO_KEYS",
+          trial_duration: post_stimulus_delay,
+        },
+      ],
+      timeline_variables: sentence_mem_timeline_vars,
+    };
+    if (!debug_mode) {
+      timeline.push(sentence_mem_procedure);
+    }
+
+    // FINAL SAVE DATA
+    var save_screen = {
+      type: jsPsychCallFunction,
+      func: function () {
+        jsPsych.setProgressBar(1.0);
+        save_data_to_server(participant_id);
+      },
+    };
+    timeline.push(save_screen);
+
+    // DEBRIEF & COMPLETION CODE
+    var debrief_prolific = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus:
+        '<p style="font-size:40px;">実験を完了していただきましてありがとうございます。</p>' +
+        '<p style="font-size:40px;">あなたの完了コードは ' +
+        completion_code_jp +
+        ".</p>" +
+        '<p style="font-size:40px;">ウィンドウを閉じても安全です.</p>',
+      choices: ["OK"],
+      on_load: function () {
+        window.onbeforeunload = () => {};
+      },
+    };
+    // timeline.push(debrief_prolific);
+
+    var debrief = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus:
+        '<p style="font-size:40px;">実験を完了していただきましてありがとうございます。</p>' +
+        '<p style="font-size:40px;">ウィンドウを閉じても安全です.</p>',
+      choices: ["OK"],
+      on_load: function () {
+        window.onbeforeunload = () => {};
+      },
+    };
+    prolific ? timeline.push(debrief_prolific) : timeline.push(debrief);
+
+    // RUN EXPERIMENT
+    jsPsych.run(timeline);
+  </script>
+</html>
