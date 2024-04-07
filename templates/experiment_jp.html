@@ -48,18 +48,32 @@
     };
 
     // Send data to server
-    function save_data_to_server(user_id = "test") {
-      let data_to_submit = jsPsych.data.get();
-      let data_and_id = { data: data_to_submit.json(), user_id: user_id };
-      console.log(data_and_id);
-      const requestOptions = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data_and_id),
+    function save_data_to_server() {
+      let jsonData = jsPsych.data.get().json();
+      //   let data_and_id = { data: data_to_submit.json(), user_id: user_id };
+      //   console.log(data_and_id);
+      //   const requestOptions = {
+      //     method: "POST",
+      //     headers: { "Content-Type": "application/json" },
+      //     body: JSON.stringify(data_and_id),
+      //   };
+      //   fetch("/mp/submitdatathc/", requestOptions).then((response) => {
+      //     console.log(response);
+      //   });
+
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", submit_url, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          console.log("Success:", xhr.responseText);
+        } else {
+          console.error("Request failed with status: " + xhr.status);
+        }
       };
-      fetch("/mp/submitdatathc/", requestOptions).then((response) => {
-        console.log(response);
-      });
+
+      xhr.send(JSON.stringify(jsonData));
     }
 
     // print to console only if debug_mode is true (defined in utils.js)
@@ -75,17 +89,20 @@
       message_progress_bar: "実験の進行",
       auto_update_progress_bar: false,
       on_close: function () {
-        save_data_to_server(participant_id);
+        save_data_to_server();
       },
-      on_finish: function () {
-        save_data_to_server(participant_id);
-      },
+      //   on_finish: function () {
+      //     save_data_to_server();
+      //   },
       override_safe_mode: false,
     });
 
     // EXPERIMENT GLOBAL VARIABLES ----------------------------------------------------------------
     // generate a random ID for the current participant, which will be used to save their data file
     var participant_id = jsPsych.randomization.randomID();
+    jsPsych.data.addProperties({
+      participant: participant_id,
+    });
     // interval object for updating countdown timer on break screens
     var interval = null;
 
@@ -478,9 +495,9 @@
         },
         choices: "NO_KEYS",
         trial_duration: post_stimulus_delay,
-        on_finish: function () {
-          save_data_to_server(participant_id);
-        },
+        // on_finish: function () {
+        //   save_data_to_server();
+        // },
       },
       {
         // second sentence presentation
@@ -865,7 +882,7 @@
       type: jsPsychCallFunction,
       func: function () {
         jsPsych.setProgressBar(1.0);
-        save_data_to_server(participant_id);
+        save_data_to_server();
       },
     };
     timeline.push(save_screen);

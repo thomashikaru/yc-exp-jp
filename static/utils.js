@@ -10,6 +10,8 @@ const completion_code_jp = "CJRXMQDW";
 const math_duration = 10000;
 const build_sent_duration = 30000;
 const build_sent_duration_jp = 45000;
+const submit_url =
+  "https://noisy-comp-server-311aa565092d.herokuapp.com/api/submit_experiment/5";
 
 const n_back_base = 20;
 const vigilance_repeat_back_range = [5, 15];
