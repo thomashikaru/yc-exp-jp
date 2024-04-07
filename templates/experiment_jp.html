@@ -51,7 +51,6 @@
     // Send data to server
     function save_data_to_server() {
       let csvData = jsPsych.data.get().csv();
-      let jsonData = csvToJson(csvData);
       //   let data_and_id = { data: data_to_submit.json(), user_id: user_id };
       //   console.log(data_and_id);
       //   const requestOptions = {
@@ -75,7 +74,14 @@
         }
       };
 
-      xhr.send(JSON.stringify(jsonData));
+      csvToJson(csvData)
+        .then((json) => {
+          xhr.send(JSON.stringify(json));
+        })
+        .catch((error) => {
+          console.log(csvData);
+          console.error("Error parsing CSV: ", error);
+        });
     }
 
     // print to console only if debug_mode is true (defined in utils.js)
