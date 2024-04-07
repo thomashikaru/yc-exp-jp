@@ -52,7 +52,11 @@
     function save_data_to_server() {
       const csvData = jsPsych.data.get().csv();
       console.log(csvData);
+      try {
       const jsonData = await csvToJson(csvData);
+      } catch (error) {
+          console.error("Error parsing CSV:", error)
+      }
       //   let data_and_id = { data: data_to_submit.json(), user_id: user_id };
       //   console.log(data_and_id);
       //   const requestOptions = {
