@@ -236,3 +236,22 @@ function get_stats(a) {
   }
   return d;
 }
+
+function csvToJson(csv) {
+  let lines = csv.split("\n");
+  let result = [];
+  let headers = lines[0].split(",").map((header) => header.trim());
+
+  for (let i = 1; i < lines.length; i++) {
+    let obj = {};
+    let currentline = lines[i].split(",");
+
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = currentline[j].trim();
+    }
+
+    result.push(obj);
+  }
+
+  return result; // This is an array of objects
+}

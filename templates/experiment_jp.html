@@ -49,7 +49,8 @@
 
     // Send data to server
     function save_data_to_server() {
-      let jsonData = jsPsych.data.get().json();
+      let csvData = jsPsych.data.get().csv();
+      let jsonData = csvToJson(csvData);
       //   let data_and_id = { data: data_to_submit.json(), user_id: user_id };
       //   console.log(data_and_id);
       //   const requestOptions = {
