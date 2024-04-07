@@ -49,13 +49,13 @@
     };
 
     // Send data to server
-    function save_data_to_server() {
+    async function save_data_to_server() {
       const csvData = jsPsych.data.get().csv();
       console.log(csvData);
       try {
-      const jsonData = await csvToJson(csvData);
+        const jsonData = await csvToJson(csvData);
       } catch (error) {
-          console.error("Error parsing CSV:", error)
+        console.error("Error parsing CSV:", error);
       }
       //   let data_and_id = { data: data_to_submit.json(), user_id: user_id };
       //   console.log(data_and_id);
@@ -96,7 +96,7 @@
       message_progress_bar: "実験の進行",
       auto_update_progress_bar: false,
       on_close: function () {
-        save_data_to_server();
+        save_data_to_server().catch(console.error);
       },
       //   on_finish: function () {
       //     save_data_to_server();
@@ -889,7 +889,7 @@
       type: jsPsychCallFunction,
       func: function () {
         jsPsych.setProgressBar(1.0);
-        save_data_to_server();
+        save_data_to_server().catch(console.error);
       },
     };
     timeline.push(save_screen);
