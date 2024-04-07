@@ -237,21 +237,17 @@ function get_stats(a) {
   return d;
 }
 
-function csvToJson(csv) {
-  let lines = csv.split("\n");
-  let result = [];
-  let headers = lines[0].split(",").map((header) => header.trim());
-
-  for (let i = 1; i < lines.length; i++) {
-    let obj = {};
-    let currentline = lines[i].split(",");
-
-    for (let j = 0; j < headers.length; j++) {
-      obj[headers[j]] = currentline[j].trim();
-    }
-
-    result.push(obj);
-  }
-
-  return result; // This is an array of objects
+function csvToJson(csvString) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(csvString, {
+      complete: function (results) {
+        resolve(results.data);
+      },
+      header: true, // Indicates the first row of CSV is the header
+      skipEmptyLines: true, // Skip empty lines in the input
+      error: function (error) {
+        reject(error);
+      },
+    });
+  });
 }
